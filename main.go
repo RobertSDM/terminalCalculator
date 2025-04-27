@@ -13,8 +13,8 @@ func main() {
 
 	expression := os.Args[1]
 
-	if !exp.MatchParenteses(expression) {
-		panic("there are parenteses with no close matchs. Fix it")
+	if !exp.MatchParentheses(expression) {
+		panic("there are parentheses with no close matchs. Fix it")
 	}
 
 	rpn := exp.InfixToRPN(expression)

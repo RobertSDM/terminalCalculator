@@ -1,9 +1,5 @@
 package operation
 
-func InvertSine(number int) int {
-	return number * -1
-}
-
 func Add(a, b int) int {
 	return a + b
 }

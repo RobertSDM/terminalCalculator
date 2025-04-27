@@ -1,23 +1,25 @@
 package expression
 
 import (
-	"regexp"
+	"fmt"
 	"strconv"
+	"strings"
 
 	op "clc/cmd/operation"
 )
 
 func IsNumber(str string) bool {
-	return regexp.MustCompile(`\d`).MatchString(str)
+	_, err := strconv.Atoi(str)
+	return err == nil
 }
 
-var precedence = map[string]int{
-	"*": 2,
-	"/": 2,
-	"+": 1,
-	"-": 1,
-	"(": 4,
-	")": 4,
+var precedence = map[rune]int{
+	'*': 2,
+	'/': 2,
+	'+': 1,
+	'-': 1,
+	'(': 4,
+	')': 4,
 }
 
 func SolveRPN(rpn []string) int {
@@ -52,65 +54,63 @@ func SolveRPN(rpn []string) int {
 
 // convert infix expression to RPN (Reverse Polish Notation)
 func InfixToRPN(expression string) []string {
-	res := []string{}
-	ops := []string{}
+	res := make([]string, 0)
+	ops := make([]rune, 0)
 
-	var value string
-	tmp := ""
+	var (
+		value rune
+		tmp   strings.Builder
+	)
 	for _, e := range expression {
+		if !IsNumber(string(e)) && tmp.Len() > 0 {
+			res = append(res, tmp.String())
+			tmp.Reset()
+		}
+
 		if IsNumber(string(e)) {
-			tmp += string(e)
+			tmp.WriteRune(e)
 		} else if e == '(' {
-			if tmp != "" {
-				res = append(res, string(tmp))
-				tmp = ""
-			}
-
-			ops = append(ops, string(e))
+			ops = append(ops, e)
 		} else if e == ')' {
-			if tmp != "" {
-				res = append(res, string(tmp))
-				tmp = ""
-			}
-
-			for len(ops) > 0 && string(ops[len(ops)-1]) != "(" {
+			for len(ops) > 0 && ops[len(ops)-1] != '(' {
 				value, ops = ops[len(ops)-1], ops[:len(ops)-1]
 
-				res = append(res, value)
+				res = append(res, string(value))
 			}
 			ops = ops[:len(ops)-1]
 		} else {
-			if tmp != "" {
-				res = append(res, string(tmp))
-				tmp = ""
-			}
-
-			for len(ops) > 0 && precedence[string(ops[len(ops)-1])] >= precedence[string(e)] && ops[len(ops)-1] != "(" {
+			for len(ops) > 0 && precedence[ops[len(ops)-1]] >= precedence[e] && ops[len(ops)-1] != '(' {
 				value, ops = ops[len(ops)-1], ops[:len(ops)-1]
-				res = append(res, value)
+				res = append(res, string(value))
 			}
-			ops = append(ops, string(e))
+			ops = append(ops, e)
 		}
 	}
-	if tmp != "" {
-		res = append(res, tmp)
+
+	if tmp.Len() > 0 {
+		res = append(res, tmp.String())
 	}
 
 	for len(ops) > 0 {
 		value, ops = ops[len(ops)-1], ops[:len(ops)-1]
-		res = append(res, value)
+		res = append(res, string(value))
 	}
 
+	fmt.Println(res)
 	return res
 }
 
-func MatchParenteses(expression string) bool {
+func MatchParentheses(expression string) bool {
 	stack := []rune{}
 
-	for _, exp := range expression {
-		if exp == '(' {
-			stack = append(stack, exp)
-		} else if len(stack) > 0 && exp == ')' {
+	for _, e := range expression {
+		if e == '(' {
+			stack = append(stack, e)
+		} else if e == ')' {
+			if len(stack) == 0 {
+				return false
+			}
+
 			stack = stack[:len(stack)-1]
 		}
 	}
