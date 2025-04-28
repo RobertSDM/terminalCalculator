@@ -1,7 +1,6 @@
 package expression
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -96,7 +95,6 @@ func InfixToRPN(expression string) []string {
 		res = append(res, string(value))
 	}
 
-	fmt.Println(res)
 	return res
 }
 
