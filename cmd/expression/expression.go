@@ -1,117 +1,144 @@
 package expression
 
 import (
+	"fmt"
+	"regexp"
 	"strconv"
-	"strings"
 
 	op "clc/cmd/operation"
+	"clc/cmd/stack"
 )
 
-func IsNumber(str string) bool {
-	_, err := strconv.Atoi(str)
-	return err == nil
+func isNumber(str string) (float64, bool) {
+	value, err := strconv.ParseFloat(str, 64)
+	return value, err == nil
 }
 
-var precedence = map[rune]int{
-	'*': 2,
-	'/': 2,
-	'+': 1,
-	'-': 1,
-	'(': 4,
-	')': 4,
+var precedence = map[string]int{
+	"*": 2,
+	"/": 2,
+	"+": 1,
+	"-": 1,
+	"(": 4,
+	")": 4,
 }
 
-func SolveRPN(rpn []string) int {
-	stack := []int{}
+var alowedSymbolsRegex = `[0-9]+(?:\.[0-9]+)?|[-+/*().]`
+
+func CleanExpression(expression string) []string {
+	re := regexp.MustCompile(alowedSymbolsRegex)
+	matches := re.FindAllString(expression, -1)
+
+	if matches == nil {
+		matches = make([]string, 0)
+	}
+
+	return matches
+}
+
+// Evaluates a Reverse Polish Notation
+func SolveRPN(rpn []string) float64 {
+	stk := stack.CreateStack[float64]()
 
 	for _, exp := range rpn {
-		if IsNumber(exp) {
-			re, _ := strconv.Atoi(exp)
-
-			stack = append(stack, re)
-		} else if len(stack) >= 2 {
-			sv := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			fv := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
+		if value, b := isNumber(exp); b {
+			stk.Add(value)
+		} else if stk.Len >= 2 {
+			sv := stk.Pop()
+			fv := stk.Pop()
 
 			switch exp {
 			case "+":
-				stack = append(stack, op.Add(fv, sv))
+				stk.Add(op.Add(fv, sv))
 			case "-":
-				stack = append(stack, op.Subtract(fv, sv))
+				stk.Add(op.Subtract(fv, sv))
 			case "*":
-				stack = append(stack, op.Multiply(fv, sv))
+				stk.Add(op.Multiply(fv, sv))
 			case "/":
-				stack = append(stack, op.Divide(fv, sv))
+				stk.Add(op.Divide(fv, sv))
 			}
 		}
 	}
 
-	return stack[0]
+	return stk.Top()
 }
 
-// convert infix expression to RPN (Reverse Polish Notation)
-func InfixToRPN(expression string) []string {
+func InfixToRPN(expression []string) []string {
 	res := make([]string, 0)
-	ops := make([]rune, 0)
+	ops := stack.CreateStack[string]()
 
 	var (
-		value rune
-		tmp   strings.Builder
+		addNegativeSignal bool
+		addedNum          bool
 	)
 	for _, e := range expression {
-		if !IsNumber(string(e)) && tmp.Len() > 0 {
-			res = append(res, tmp.String())
-			tmp.Reset()
-		}
-
-		if IsNumber(string(e)) {
-			tmp.WriteRune(e)
-		} else if e == '(' {
-			ops = append(ops, e)
-		} else if e == ')' {
-			for len(ops) > 0 && ops[len(ops)-1] != '(' {
-				value, ops = ops[len(ops)-1], ops[:len(ops)-1]
-
-				res = append(res, string(value))
+		if _, b := isNumber(e); b {
+			if addNegativeSignal {
+				res = append(res, fmt.Sprintf("-%s", e))
+			} else {
+				res = append(res, e)
 			}
-			ops = ops[:len(ops)-1]
+			addedNum = true
+		} else if e == "(" {
+			ops.Add(e)
+		} else if e == ")" {
+			for ops.HasLen() && ops.Top() != "(" {
+				res = append(res, ops.Pop())
+			}
+			ops.Pop()
+		} else if e == "-" && (len(res) == 0 || !addedNum) {
+			addNegativeSignal = true
 		} else {
-			for len(ops) > 0 && precedence[ops[len(ops)-1]] >= precedence[e] && ops[len(ops)-1] != '(' {
-				value, ops = ops[len(ops)-1], ops[:len(ops)-1]
-				res = append(res, string(value))
+			for ops.HasLen() && precedence[ops.Top()] >= precedence[e] && ops.Top() != "(" {
+				res = append(res, ops.Pop())
 			}
-			ops = append(ops, e)
+			addedNum = false
+			addNegativeSignal = false
+
+			ops.Add(e)
 		}
 	}
 
-	if tmp.Len() > 0 {
-		res = append(res, tmp.String())
-	}
-
-	for len(ops) > 0 {
-		value, ops = ops[len(ops)-1], ops[:len(ops)-1]
-		res = append(res, string(value))
+	for ops.Len > 0 {
+		res = append(res, ops.Pop())
 	}
 
 	return res
 }
 
-func MatchParentheses(expression string) bool {
-	stack := []rune{}
+// Verify if all parentheses in the expression have a match
+func MatchParentheses(expression []string) bool {
+	stk := stack.CreateStack[string]()
 
 	for _, e := range expression {
-		if e == '(' {
-			stack = append(stack, e)
-		} else if e == ')' {
-			if len(stack) == 0 {
+		if e == "(" {
+			stk.Add(e)
+		} else if e == ")" {
+			if stk.Len == 0 {
 				return false
 			}
 
-			stack = stack[:len(stack)-1]
+			stk.Pop()
 		}
 	}
 
-	return len(stack) == 0
+	return stk.Len == 0
+}
+
+func ValidateExpression(expression []string) bool {
+	var count int
+
+	for _, e := range expression {
+		if _, b := isNumber(e); b || e == "(" || e == ")" {
+			count = 0
+		} else {
+			count += 1
+
+			if count >= 2 {
+				return false
+			}
+		}
+	}
+
+	return true
 }
